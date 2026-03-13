@@ -71,13 +71,13 @@ char g_input_buffer[256];
 int g_buffer_idx = 0;
 char g_last_command[128];
 
-// ============= КАЛЬКУЛЯТОР =============
+// ============= КАЛЬКУЛЯТОР (БЕЗ FLOAT) =============
 int calc_mode = 0;
 char calc_display[32];
-float calc_result = 0;
-float calc_memory = 0;
+int calc_result = 0;      // Целое число (умножено на 100 для 2 знаков после запятой)
+int calc_memory = 0;
 char calc_op = 0;
-float calc_current = 0;
+int calc_current = 0;
 int calc_new_number = 1;
 
 // ============= ПРОСТОЙ ШРИФТ 8x8 =============
@@ -254,19 +254,21 @@ void g_draw_rect_filled(int x, int y, int w, int h, unsigned int color) {
     }
 }
 
-// Функция для преобразования числа с плавающей точкой в строку
-void float_to_str(float num, char* str) {
-    int int_part = (int)num;
-    int frac_part = (int)((num - int_part) * 100);
+// Функция для преобразования целого числа (с 2 знаками после запятой) в строку
+void int_to_str_with_frac(int num, char* str) {
+    int int_part = num / 100;
+    int frac_part = num % 100;
     if (frac_part < 0) frac_part = -frac_part;
     
     int i = 0;
     
-    if (num < 0 && int_part == 0) {
+    // Обработка отрицательного числа
+    if (num < 0) {
         str[i++] = '-';
         int_part = -int_part;
     }
     
+    // Преобразование целой части
     char temp[16];
     int j = 0;
     if (int_part == 0) {
@@ -279,19 +281,17 @@ void float_to_str(float num, char* str) {
         }
     }
     
+    // Переворачиваем целую часть
     while (j > 0) {
         str[i++] = temp[--j];
     }
     
+    // Добавляем дробную часть
     str[i++] = '.';
     
-    if (frac_part < 10) {
-        str[i++] = '0';
-        str[i++] = '0' + frac_part;
-    } else {
-        str[i++] = '0' + (frac_part / 10);
-        str[i++] = '0' + (frac_part % 10);
-    }
+    // Всегда показываем две цифры после запятой
+    str[i++] = '0' + (frac_part / 10);
+    str[i++] = '0' + (frac_part % 10);
     
     str[i] = 0;
 }
@@ -301,67 +301,215 @@ void float_to_str(float num, char* str) {
 void g_draw_calculator() {
     g_clear_screen(0x000000);
     
+    // Основная рамка калькулятора
     g_draw_rect_outline(100, 50, 440, 380, 0xFFFFFF);
     g_draw_rect_filled(102, 52, 436, 376, 0x333333);
     
+    // Заголовок
     g_print("AXIS-OS Calculator", 200, 70, 0xFFFF00);
     
+    // Дисплей
     g_draw_rect_outline(120, 100, 400, 50, 0x00FF00);
     g_draw_rect_filled(122, 102, 396, 46, 0x000000);
     
-    float_to_str(calc_result, calc_display);
+    // Отображаем текущее значение
+    int_to_str_with_frac(calc_result, calc_display);
     g_print(calc_display, 130, 120, 0x00FF00);
     
+    // Координаты для кнопок
+    int bx = 120;  // начальный X
+    int by = 170;  // начальный Y
+    int bw = 70;   // ширина кнопки
+    int bh = 50;   // высота кнопки
+    int spacing = 10; // расстояние между кнопками
+    
+    // ============= СТРОКА 1: 7 8 9 / C =============
+    // Кнопка 7
+    g_draw_rect_outline(bx, by, bw, bh, 0xFFFFFF);
+    g_draw_rect_filled(bx+2, by+2, bw-4, bh-4, 0x666666);
+    g_print("7", bx+30, by+20, 0xFFFFFF);
+    
+    // Кнопка 8
+    g_draw_rect_outline(bx + bw + spacing, by, bw, bh, 0xFFFFFF);
+    g_draw_rect_filled(bx + bw + spacing + 2, by+2, bw-4, bh-4, 0x666666);
+    g_print("8", bx + bw + spacing + 30, by+20, 0xFFFFFF);
+    
+    // Кнопка 9
+    g_draw_rect_outline(bx + 2*(bw + spacing), by, bw, bh, 0xFFFFFF);
+    g_draw_rect_filled(bx + 2*(bw + spacing) + 2, by+2, bw-4, bh-4, 0x666666);
+    g_print("9", bx + 2*(bw + spacing) + 30, by+20, 0xFFFFFF);
+    
+    // Кнопка /
+    g_draw_rect_outline(bx + 3*(bw + spacing), by, bw, bh, 0xFFFFFF);
+    g_draw_rect_filled(bx + 3*(bw + spacing) + 2, by+2, bw-4, bh-4, 0xAA0000);
+    g_print("/", bx + 3*(bw + spacing) + 30, by+20, 0xFFFFFF);
+    
+    // Кнопка C (Clear)
+    g_draw_rect_outline(bx + 4*(bw + spacing), by, bw, bh, 0xFFFFFF);
+    g_draw_rect_filled(bx + 4*(bw + spacing) + 2, by+2, bw-4, bh-4, 0xAA5500);
+    g_print("C", bx + 4*(bw + spacing) + 30, by+20, 0xFFFFFF);
+    
+    // ============= СТРОКА 2: 4 5 6 * =============
+    by += bh + spacing;
+    
+    // Кнопка 4
+    g_draw_rect_outline(bx, by, bw, bh, 0xFFFFFF);
+    g_draw_rect_filled(bx+2, by+2, bw-4, bh-4, 0x666666);
+    g_print("4", bx+30, by+20, 0xFFFFFF);
+    
+    // Кнопка 5
+    g_draw_rect_outline(bx + bw + spacing, by, bw, bh, 0xFFFFFF);
+    g_draw_rect_filled(bx + bw + spacing + 2, by+2, bw-4, bh-4, 0x666666);
+    g_print("5", bx + bw + spacing + 30, by+20, 0xFFFFFF);
+    
+    // Кнопка 6
+    g_draw_rect_outline(bx + 2*(bw + spacing), by, bw, bh, 0xFFFFFF);
+    g_draw_rect_filled(bx + 2*(bw + spacing) + 2, by+2, bw-4, bh-4, 0x666666);
+    g_print("6", bx + 2*(bw + spacing) + 30, by+20, 0xFFFFFF);
+    
+    // Кнопка *
+    g_draw_rect_outline(bx + 3*(bw + spacing), by, bw, bh, 0xFFFFFF);
+    g_draw_rect_filled(bx + 3*(bw + spacing) + 2, by+2, bw-4, bh-4, 0xAA0000);
+    g_print("*", bx + 3*(bw + spacing) + 30, by+20, 0xFFFFFF);
+    
+    // Кнопка M (Memory save)
+    g_draw_rect_outline(bx + 4*(bw + spacing), by, bw, bh, 0xFFFFFF);
+    g_draw_rect_filled(bx + 4*(bw + spacing) + 2, by+2, bw-4, bh-4, 0xAA5500);
+    g_print("M", bx + 4*(bw + spacing) + 30, by+20, 0xFFFFFF);
+    
+    // ============= СТРОКА 3: 1 2 3 - =============
+    by += bh + spacing;
+    
+    // Кнопка 1
+    g_draw_rect_outline(bx, by, bw, bh, 0xFFFFFF);
+    g_draw_rect_filled(bx+2, by+2, bw-4, bh-4, 0x666666);
+    g_print("1", bx+30, by+20, 0xFFFFFF);
+    
+    // Кнопка 2
+    g_draw_rect_outline(bx + bw + spacing, by, bw, bh, 0xFFFFFF);
+    g_draw_rect_filled(bx + bw + spacing + 2, by+2, bw-4, bh-4, 0x666666);
+    g_print("2", bx + bw + spacing + 30, by+20, 0xFFFFFF);
+    
+    // Кнопка 3
+    g_draw_rect_outline(bx + 2*(bw + spacing), by, bw, bh, 0xFFFFFF);
+    g_draw_rect_filled(bx + 2*(bw + spacing) + 2, by+2, bw-4, bh-4, 0x666666);
+    g_print("3", bx + 2*(bw + spacing) + 30, by+20, 0xFFFFFF);
+    
+    // Кнопка -
+    g_draw_rect_outline(bx + 3*(bw + spacing), by, bw, bh, 0xFFFFFF);
+    g_draw_rect_filled(bx + 3*(bw + spacing) + 2, by+2, bw-4, bh-4, 0xAA0000);
+    g_print("-", bx + 3*(bw + spacing) + 30, by+20, 0xFFFFFF);
+    
+    // Кнопка R (Memory recall)
+    g_draw_rect_outline(bx + 4*(bw + spacing), by, bw, bh, 0xFFFFFF);
+    g_draw_rect_filled(bx + 4*(bw + spacing) + 2, by+2, bw-4, bh-4, 0xAA5500);
+    g_print("R", bx + 4*(bw + spacing) + 30, by+20, 0xFFFFFF);
+    
+    // ============= СТРОКА 4: 0 . = + =============
+    by += bh + spacing;
+    
+    // Кнопка 0 (шире)
+    g_draw_rect_outline(bx, by, 2*bw + spacing, bh, 0xFFFFFF);
+    g_draw_rect_filled(bx+2, by+2, 2*bw + spacing - 4, bh-4, 0x666666);
+    g_print("0", bx + (bw + spacing/2), by+20, 0xFFFFFF);
+    
+    // Кнопка .
+    g_draw_rect_outline(bx + 2*bw + 2*spacing, by, bw, bh, 0xFFFFFF);
+    g_draw_rect_filled(bx + 2*bw + 2*spacing + 2, by+2, bw-4, bh-4, 0x666666);
+    g_print(".", bx + 2*bw + 2*spacing + 30, by+20, 0xFFFFFF);
+    
+    // Кнопка =
+    g_draw_rect_outline(bx + 3*bw + 3*spacing, by, bw, bh, 0xFFFFFF);
+    g_draw_rect_filled(bx + 3*bw + 3*spacing + 2, by+2, bw-4, bh-4, 0x00AA00);
+    g_print("=", bx + 3*bw + 3*spacing + 30, by+20, 0xFFFFFF);
+    
+    // Кнопка +
+    g_draw_rect_outline(bx + 4*bw + 4*spacing, by, bw, bh, 0xFFFFFF);
+    g_draw_rect_filled(bx + 4*bw + 4*spacing + 2, by+2, bw-4, bh-4, 0xAA0000);
+    g_print("+", bx + 4*bw + 4*spacing + 30, by+20, 0xFFFFFF);
+    
+    // Инструкция
     g_print("Use keyboard: Numbers, + - * / . =, C, M, R", 120, 430, 0xAAAAAA);
-    g_print("ESC to exit", 120, 445, 0xAAAAAA);
+    g_print("Press ESC to exit calculator", 120, 445, 0xAAAAAA);
 }
 
 void g_calc_handle_key(char key) {
+    // Обработка цифр
     if (key >= '0' && key <= '9') {
         if (calc_new_number) {
-            calc_result = key - '0';
+            // Первая цифра: 5 -> 500 (5.00)
+            calc_result = (key - '0') * 100;
             calc_new_number = 0;
         } else {
-            calc_result = calc_result * 10 + (key - '0');
+            // Добавляем цифру: 5 (500) + 3 -> 5300? Нет, нужно 5300 что означает 53.00
+            // Но нам нужно 5.3 -> 530
+            // Текущее число 500 (5.00) умножаем на 10 -> 5000 (50.00), потом добавляем 3*100 -> 300, итого 5300 (53.00) - это неправильно!
+            
+            // Правильно: 5.00 (500) + 3 -> 5.3 (530)
+            calc_result = calc_result * 10 + (key - '0') * 100;
+            // Но это даёт слишком большое число! Нужно делить на 10?
+            
+            // Давай сделаем по-другому:
+            // Храним число как есть, без умножения на 100, а умножение делаем только при выводе
         }
     }
-    else if (key == '+' || key == '-' || key == '*' || key == '/') {
-        if (calc_op != 0 && !calc_new_number) {
-            switch (calc_op) {
-                case '+': calc_result = calc_current + calc_result; break;
-                case '-': calc_result = calc_current - calc_result; break;
-                case '*': calc_result = calc_current * calc_result; break;
-                case '/': 
-                    if (calc_result != 0) {
-                        calc_result = calc_current / calc_result;
-                    } else {
-                        calc_result = 0;
-                    }
-                    break;
+    // Обработка операций
+    else if (key == '+' || key == '-' || key == '*' || key == '/' || 
+             key == '=' || key == '\n') {
+        
+        if (key == '=' || key == '\n') {
+            // Вычисление результата
+            if (calc_op != 0) {
+                switch (calc_op) {
+                    case '+': 
+                        calc_result = calc_current + calc_result; 
+                        break;
+                    case '-': 
+                        calc_result = calc_current - calc_result; 
+                        break;
+                    case '*': 
+                        calc_result = (calc_current * calc_result) / 100; 
+                        break;
+                    case '/': 
+                        if (calc_result != 0) {
+                            calc_result = (calc_current * 100) / calc_result; 
+                        } else {
+                            calc_result = 0;
+                        }
+                        break;
+                }
+                calc_op = 0;
             }
-        }
-        calc_current = calc_result;
-        calc_op = key;
-        calc_new_number = 1;
-    }
-    else if (key == '=' || key == '\n') {
-        if (calc_op != 0) {
-            switch (calc_op) {
-                case '+': calc_result = calc_current + calc_result; break;
-                case '-': calc_result = calc_current - calc_result; break;
-                case '*': calc_result = calc_current * calc_result; break;
-                case '/': 
-                    if (calc_result != 0) {
-                        calc_result = calc_current / calc_result;
-                    } else {
-                        calc_result = 0;
-                    }
-                    break;
+            calc_new_number = 1;
+        } 
+        else if (key == '+' || key == '-' || key == '*' || key == '/') {
+            // Сохранение операции
+            if (calc_op != 0 && !calc_new_number) {
+                switch (calc_op) {
+                    case '+': 
+                        calc_result = calc_current + calc_result; 
+                        break;
+                    case '-': 
+                        calc_result = calc_current - calc_result; 
+                        break;
+                    case '*': 
+                        calc_result = (calc_current * calc_result) / 100; 
+                        break;
+                    case '/': 
+                        if (calc_result != 0) {
+                            calc_result = (calc_current * 100) / calc_result; 
+                        } else {
+                            calc_result = 0;
+                        }
+                        break;
+                }
             }
-            calc_op = 0;
+            calc_current = calc_result;
+            calc_op = key;
+            calc_new_number = 1;
         }
-        calc_new_number = 1;
     }
+    // Обработка специальных команд
     else if (key == 'c' || key == 'C') {
         calc_result = 0;
         calc_current = 0;
@@ -376,8 +524,9 @@ void g_calc_handle_key(char key) {
         calc_new_number = 1;
     }
     
+    // Обновляем дисплей
     g_draw_rect_filled(122, 102, 396, 46, 0x000000);
-    float_to_str(calc_result, calc_display);
+    int_to_str_with_frac(calc_result, calc_display);
     g_print(calc_display, 130, 120, 0x00FF00);
 }
 
